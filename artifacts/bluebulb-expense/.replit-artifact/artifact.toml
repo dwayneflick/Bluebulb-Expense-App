@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Bluebulb Expense Management"
+version = "1.0.0"
+id = "artifacts/bluebulb-expense"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 21068
+name = "web"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/bluebulb-expense run dev"
+
+[services.env]
+PORT = "21068"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/bluebulb-expense", "run", "build"]
+publicDir = "artifacts/bluebulb-expense/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"

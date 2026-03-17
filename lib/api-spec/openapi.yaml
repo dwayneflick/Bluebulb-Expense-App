@@ -1,22 +1,32 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Bluebulb Expense Management API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: users
+    description: User management
+  - name: expenses
+    description: Expense requests
+  - name: approvals
+    description: Approval workflows
+  - name: retirements
+    description: Expense retirements
+  - name: dashboard
+    description: Dashboard statistics
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +34,390 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users:
+    get:
+      operationId: getUsers
+      tags: [users]
+      summary: Get all users
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    get:
+      operationId: getUserById
+      tags: [users]
+      summary: Get user by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    put:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Delete user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /expenses:
+    get:
+      operationId: getExpenses
+      tags: [expenses]
+      summary: Get expense requests
+      parameters:
+        - name: requesterId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: approverId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of expenses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExpenseRequest"
+    post:
+      operationId: createExpense
+      tags: [expenses]
+      summary: Create expense request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExpenseRequest"
+      responses:
+        "201":
+          description: Expense created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpenseRequest"
+
+  /expenses/{id}:
+    get:
+      operationId: getExpenseById
+      tags: [expenses]
+      summary: Get expense by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Expense found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpenseRequest"
+    put:
+      operationId: updateExpense
+      tags: [expenses]
+      summary: Update expense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateExpenseRequest"
+      responses:
+        "200":
+          description: Expense updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpenseRequest"
+
+  /expenses/{id}/approve:
+    post:
+      operationId: approveExpense
+      tags: [approvals]
+      summary: Approve or reject an expense at current step
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalActionRequest"
+      responses:
+        "200":
+          description: Approval action taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpenseRequest"
+
+  /expenses/{id}/pay:
+    post:
+      operationId: markExpensePaid
+      tags: [approvals]
+      summary: Mark expense as paid
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkPaidRequest"
+      responses:
+        "200":
+          description: Expense marked paid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpenseRequest"
+
+  /retirements:
+    get:
+      operationId: getRetirements
+      tags: [retirements]
+      summary: Get retirement requests
+      parameters:
+        - name: requesterId
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of retirements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RetirementRequest"
+    post:
+      operationId: createRetirement
+      tags: [retirements]
+      summary: Create retirement request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRetirementRequest"
+      responses:
+        "201":
+          description: Retirement created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetirementRequest"
+
+  /retirements/{id}:
+    get:
+      operationId: getRetirementById
+      tags: [retirements]
+      summary: Get retirement by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Retirement found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetirementRequest"
+
+  /retirements/{id}/approve:
+    post:
+      operationId: approveRetirement
+      tags: [retirements]
+      summary: Approve or reject retirement
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalActionRequest"
+      responses:
+        "200":
+          description: Retirement action taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetirementRequest"
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get dashboard statistics
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +428,475 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+        - message
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        message:
+          type: string
+      required:
+        - user
+        - message
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, requester, approver_manager, internal_control, finance_manager, finance_team]
+        department:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - email
+        - role
+        - department
+        - createdAt
+
+    CreateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        role:
+          type: string
+          enum: [admin, requester, approver_manager, internal_control, finance_manager, finance_team]
+        department:
+          type: string
+      required:
+        - name
+        - email
+        - password
+        - role
+        - department
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, requester, approver_manager, internal_control, finance_manager, finance_team]
+        department:
+          type: string
+
+    ExpenseRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        expenseName:
+          type: string
+        expenseType:
+          type: string
+        purpose:
+          type: string
+        otherInfo:
+          type: string
+        department:
+          type: string
+        requesterId:
+          type: integer
+        requesterName:
+          type: string
+        approverId:
+          type: integer
+        approverName:
+          type: string
+        internalControlId:
+          type: integer
+        internalControlName:
+          type: string
+        financeManagerId:
+          type: integer
+        financeManagerName:
+          type: string
+        requestDate:
+          type: string
+        dueDate:
+          type: string
+        bankName:
+          type: string
+        accountNumber:
+          type: string
+        accountName:
+          type: string
+        amount:
+          type: number
+        status:
+          type: string
+          enum: [draft, pending_manager, pending_internal_control, pending_finance_manager, pending_payment, paid, rejected]
+        currentApprovalStep:
+          type: string
+        attachmentUrl:
+          type: string
+        receiptUrl:
+          type: string
+        managerApprovalDate:
+          type: string
+        managerRejectionReason:
+          type: string
+        internalControlApprovalDate:
+          type: string
+        internalControlRejectionReason:
+          type: string
+        financeManagerApprovalDate:
+          type: string
+        financeManagerRejectionReason:
+          type: string
+        paidDate:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - expenseName
+        - expenseType
+        - purpose
+        - department
+        - requesterId
+        - requesterName
+        - approverId
+        - approverName
+        - requestDate
+        - bankName
+        - accountNumber
+        - accountName
+        - amount
+        - status
+        - createdAt
+        - updatedAt
+
+    CreateExpenseRequest:
+      type: object
+      properties:
+        expenseName:
+          type: string
+        expenseType:
+          type: string
+        purpose:
+          type: string
+        otherInfo:
+          type: string
+        department:
+          type: string
+        requesterId:
+          type: integer
+        approverId:
+          type: integer
+        internalControlId:
+          type: integer
+        financeManagerId:
+          type: integer
+        requestDate:
+          type: string
+        dueDate:
+          type: string
+        bankName:
+          type: string
+        accountNumber:
+          type: string
+        accountName:
+          type: string
+        amount:
+          type: number
+        status:
+          type: string
+          enum: [draft, pending_manager]
+        attachmentUrl:
+          type: string
+      required:
+        - expenseName
+        - expenseType
+        - purpose
+        - department
+        - requesterId
+        - approverId
+        - requestDate
+        - bankName
+        - accountNumber
+        - accountName
+        - amount
+        - status
+
+    UpdateExpenseRequest:
+      type: object
+      properties:
+        expenseName:
+          type: string
+        expenseType:
+          type: string
+        purpose:
+          type: string
+        otherInfo:
+          type: string
+        department:
+          type: string
+        approverId:
+          type: integer
+        internalControlId:
+          type: integer
+        financeManagerId:
+          type: integer
+        requestDate:
+          type: string
+        dueDate:
+          type: string
+        bankName:
+          type: string
+        accountNumber:
+          type: string
+        accountName:
+          type: string
+        amount:
+          type: number
+        status:
+          type: string
+          enum: [draft, pending_manager]
+        attachmentUrl:
+          type: string
+
+    ApprovalActionRequest:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [approve, reject]
+        reason:
+          type: string
+        approverId:
+          type: integer
+      required:
+        - action
+        - approverId
+
+    MarkPaidRequest:
+      type: object
+      properties:
+        receiptUrl:
+          type: string
+        paidById:
+          type: integer
+      required:
+        - paidById
+
+    RetirementRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        expenseId:
+          type: integer
+        expenseName:
+          type: string
+        requesterId:
+          type: integer
+        requesterName:
+          type: string
+        department:
+          type: string
+        amount:
+          type: number
+        actualAmount:
+          type: number
+        purpose:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        approverId:
+          type: integer
+        approverName:
+          type: string
+        approvalDate:
+          type: string
+        rejectionReason:
+          type: string
+        attachmentUrl:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - expenseId
+        - expenseName
+        - requesterId
+        - requesterName
+        - department
+        - amount
+        - purpose
+        - status
+        - createdAt
+        - updatedAt
+
+    CreateRetirementRequest:
+      type: object
+      properties:
+        expenseId:
+          type: integer
+        requesterId:
+          type: integer
+        actualAmount:
+          type: number
+        purpose:
+          type: string
+        approverId:
+          type: integer
+        attachmentUrl:
+          type: string
+      required:
+        - expenseId
+        - requesterId
+        - actualAmount
+        - purpose
+        - approverId
+
+    DashboardStats:
+      type: object
+      properties:
+        totalExpenses:
+          type: integer
+        totalAmount:
+          type: number
+        pendingCount:
+          type: integer
+        approvedCount:
+          type: integer
+        rejectedCount:
+          type: integer
+        paidCount:
+          type: integer
+        byDepartment:
+          type: array
+          items:
+            $ref: "#/components/schemas/DepartmentStat"
+        byMonth:
+          type: array
+          items:
+            $ref: "#/components/schemas/MonthStat"
+        byYear:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearStat"
+        byStatus:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatusStat"
+      required:
+        - totalExpenses
+        - totalAmount
+        - pendingCount
+        - approvedCount
+        - rejectedCount
+        - paidCount
+        - byDepartment
+        - byMonth
+        - byYear
+        - byStatus
+
+    DepartmentStat:
+      type: object
+      properties:
+        department:
+          type: string
+        count:
+          type: integer
+        amount:
+          type: number
+      required:
+        - department
+        - count
+        - amount
+
+    MonthStat:
+      type: object
+      properties:
+        month:
+          type: string
+        count:
+          type: integer
+        amount:
+          type: number
+      required:
+        - month
+        - count
+        - amount
+
+    YearStat:
+      type: object
+      properties:
+        year:
+          type: string
+        count:
+          type: integer
+        amount:
+          type: number
+      required:
+        - year
+        - count
+        - amount
+
+    StatusStat:
+      type: object
+      properties:
+        status:
+          type: string
+        count:
+          type: integer
+        amount:
+          type: number
+      required:
+        - status
+        - count
+        - amount

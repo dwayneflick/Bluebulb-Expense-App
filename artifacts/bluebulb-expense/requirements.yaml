@@ -1,0 +1,19 @@
+packages:
+  "recharts": "For dashboard data visualization and charts"
+  "react-hook-form": "For complex expense request and approval forms"
+  "@hookform/resolvers": "For Zod validation integration with react-hook-form"
+  "date-fns": "For date formatting and manipulation in tables and details"
+  "clsx": "For conditional class merging in UI components"
+  "tailwind-merge": "For merging tailwind classes safely"
+
+images:
+  - path: "artifacts/bluebulb-expense/public/images/logo.png"
+    description: "A clean, modern corporate logo for 'Bluebulb', featuring a stylized minimal lightbulb icon integrated with a 'B' in deep corporate blue. Transparent background."
+    aspect_ratio: "1:1"
+  - path: "artifacts/bluebulb-expense/public/images/auth-bg.png"
+    description: "An abstract, premium corporate background featuring subtle geometric shapes, glowing deep blue and teal gradients, with a clean enterprise feel."
+    aspect_ratio: "16:9"
+
+notes:
+  - Using generated Orval hooks from @workspace/api-client-react
+  - Auth is cookie-based, using useGetMe and useLogin mutations
