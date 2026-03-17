@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useGetUsers, useCreateUser, useUpdateUser, useDeleteUser } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { DEPARTMENTS } from "@/lib/constants";
 import { Loader2, Plus, Pencil, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -224,15 +225,20 @@ function UserFormModal({ user, onClose }: { user: any; onClose: () => void }) {
             <div className="space-y-2">
               <Label>Role <span className="text-red-500">*</span></Label>
               <Select value={formData.role} onValueChange={v => setFormData({ ...formData, role: v })}>
-                <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
-                <SelectContent>
-                  {ROLES.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                <SelectTrigger className="bg-white border-slate-300"><SelectValue placeholder="Select role" /></SelectTrigger>
+                <SelectContent className="bg-white border border-slate-200 shadow-lg z-50">
+                  {ROLES.map(r => <SelectItem key={r.value} value={r.value} className="cursor-pointer hover:bg-slate-50">{r.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>Department <span className="text-red-500">*</span></Label>
-              <Input value={formData.department} onChange={e => setFormData({ ...formData, department: e.target.value })} placeholder="e.g. Finance" />
+              <Select value={formData.department} onValueChange={v => setFormData({ ...formData, department: v })}>
+                <SelectTrigger className="bg-white border-slate-300"><SelectValue placeholder="Select department" /></SelectTrigger>
+                <SelectContent className="bg-white border border-slate-200 shadow-lg z-50 max-h-60">
+                  {DEPARTMENTS.map(d => <SelectItem key={d} value={d} className="cursor-pointer hover:bg-slate-50">{d}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>

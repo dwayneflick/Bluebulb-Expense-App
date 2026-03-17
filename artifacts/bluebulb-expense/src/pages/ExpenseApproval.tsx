@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { useGetExpenses, useApproveExpense, useMarkExpensePaid } from "@workspace/api-client-react";
+import { useGetExpenses, useApproveExpense } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { formatNaira } from "@/lib/constants";
 import { StatusBadge } from "@/components/StatusBadge";
 import { format } from "date-fns";
-import { Loader2, Check, X, FileCheck2, Eye, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, Check, X, FileCheck2, Eye, CheckCircle2, XCircle, Paperclip, ExternalLink, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +13,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+
+function getFileUrl(path: string) {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
+  return `${window.location.protocol}//${window.location.hostname}:8080${path}`;
+}
 
 export default function ExpenseApproval() {
   const { user } = useAuth();
@@ -37,6 +43,8 @@ export default function ExpenseApproval() {
     setSelectedExpense(expense);
     setActionType(action);
   };
+
+  const isFinanceTeam = user?.role === 'finance_team' || user?.role === 'admin';
 
   return (
     <div className="space-y-6">
@@ -81,23 +89,20 @@ export default function ExpenseApproval() {
                         <div className="text-xs text-muted-foreground">{expense.expenseType}</div>
                       </TableCell>
                       <TableCell className="font-bold text-slate-800">{formatNaira(expense.amount)}</TableCell>
-                      <TableCell>
-                        <StatusBadge status={expense.status} />
-                      </TableCell>
+                      <TableCell><StatusBadge status={expense.status} /></TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end space-x-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-slate-500 hover:text-slate-700"
-                            onClick={() => handleActionClick(expense, 'view')}
-                          >
+                          <Button size="sm" variant="ghost" className="text-slate-500 hover:text-slate-700" onClick={() => handleActionClick(expense, 'view')}>
                             <Eye className="h-4 w-4 mr-1" /> View
                           </Button>
                           {expense.status === 'pending_payment' ? (
-                            <Button size="sm" onClick={() => handleActionClick(expense, 'pay')} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                              Mark Paid
-                            </Button>
+                            isFinanceTeam ? (
+                              <Button size="sm" onClick={() => handleActionClick(expense, 'pay')} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                                Mark Paid
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-slate-400 italic px-2">Finance Team only</span>
+                            )
                           ) : (
                             <>
                               <Button size="sm" variant="outline" className="text-emerald-600 border-emerald-200 hover:bg-emerald-50" onClick={() => handleActionClick(expense, 'approve')}>
@@ -123,8 +128,9 @@ export default function ExpenseApproval() {
         <ExpenseDetailModal
           expense={selectedExpense}
           onClose={() => { setSelectedExpense(null); setActionType(null); }}
-          onAction={(action) => setActionType(action)}
+          onAction={(action: any) => setActionType(action)}
           userRole={user?.role}
+          isFinanceTeam={isFinanceTeam}
         />
       )}
 
@@ -139,14 +145,33 @@ export default function ExpenseApproval() {
   );
 }
 
-function ExpenseDetailModal({ expense, onClose, onAction, userRole }: any) {
+function AttachmentList({ attachments }: { attachments: string[] }) {
+  if (!attachments || attachments.length === 0) return null;
+  return (
+    <div>
+      <p className="text-sm text-slate-500 font-medium mb-2">Attachments ({attachments.length})</p>
+      <div className="space-y-2">
+        {attachments.map((url, i) => (
+          <a key={i} href={getFileUrl(url)} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors text-sm text-primary">
+            <Paperclip className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">Attachment {i + 1}</span>
+            <ExternalLink className="h-3 w-3 ml-auto flex-shrink-0" />
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ExpenseDetailModal({ expense, onClose, onAction, isFinanceTeam }: any) {
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-display border-b pb-4">Expense Details</DialogTitle>
         </DialogHeader>
-        <div className="space-y-6 py-2">
+        <div className="space-y-5 py-2">
           <div className="flex justify-between items-start">
             <div>
               <h3 className="text-xl font-bold text-foreground">{expense.expenseName}</h3>
@@ -155,63 +180,38 @@ function ExpenseDetailModal({ expense, onClose, onAction, userRole }: any) {
             <StatusBadge status={expense.status} className="text-sm px-3 py-1.5" />
           </div>
 
-          <div className="grid grid-cols-2 gap-6 p-5 bg-slate-50 rounded-xl border border-slate-100">
-            <div>
-              <p className="text-sm text-slate-500 font-medium">Amount Requested</p>
-              <p className="text-2xl font-bold text-slate-800">{formatNaira(expense.amount)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-slate-500 font-medium">Request Date</p>
-              <p className="text-lg font-semibold text-slate-800">{format(new Date(expense.requestDate), 'MMM dd, yyyy')}</p>
-            </div>
-            {expense.dueDate && (
-              <div>
-                <p className="text-sm text-slate-500 font-medium">Due Date</p>
-                <p className="text-lg font-semibold text-slate-800">{format(new Date(expense.dueDate), 'MMM dd, yyyy')}</p>
-              </div>
-            )}
-            <div>
-              <p className="text-sm text-slate-500 font-medium">Department</p>
-              <p className="text-lg font-semibold text-slate-800">{expense.department}</p>
-            </div>
+          <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+            <div><p className="text-xs text-slate-500 font-medium">Amount</p><p className="text-xl font-bold text-slate-800">{formatNaira(expense.amount)}</p></div>
+            <div><p className="text-xs text-slate-500 font-medium">Request Date</p><p className="text-base font-semibold text-slate-800">{format(new Date(expense.requestDate), 'MMM dd, yyyy')}</p></div>
+            <div><p className="text-xs text-slate-500 font-medium">Requester</p><p className="font-semibold text-slate-700">{expense.requesterName}</p></div>
+            <div><p className="text-xs text-slate-500 font-medium">Department</p><p className="font-semibold text-slate-700">{expense.department}</p></div>
+            {expense.sbu && <div><p className="text-xs text-slate-500 font-medium">SBU</p><p className="font-semibold text-slate-700">{expense.sbu}</p></div>}
+            {expense.dueDate && <div><p className="text-xs text-slate-500 font-medium">Due Date</p><p className="font-semibold text-slate-700">{format(new Date(expense.dueDate), 'MMM dd, yyyy')}</p></div>}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-slate-500 font-medium mb-1">Requester</p>
-              <p className="font-semibold text-slate-800">{expense.requesterName}</p>
-            </div>
+          <div><p className="text-sm text-slate-500 font-medium mb-1">Purpose</p><p className="text-slate-700 bg-white p-3 rounded-lg border border-slate-200">{expense.purpose}</p></div>
+          {expense.otherInfo && <div><p className="text-sm text-slate-500 font-medium mb-1">Other Information</p><p className="text-slate-700 bg-white p-3 rounded-lg border border-slate-200">{expense.otherInfo}</p></div>}
+
+          <div className="grid grid-cols-3 gap-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
+            <div><p className="text-xs text-blue-500 font-medium">Bank</p><p className="font-semibold text-slate-800 text-sm">{expense.bankName}</p></div>
+            <div><p className="text-xs text-blue-500 font-medium">Account Number</p><p className="font-mono font-semibold text-slate-800 text-sm">{expense.accountNumber}</p></div>
+            <div><p className="text-xs text-blue-500 font-medium">Account Name</p><p className="font-semibold text-slate-800 text-sm">{expense.accountName}</p></div>
           </div>
 
-          <div>
-            <p className="text-sm text-slate-500 font-medium mb-1">Purpose</p>
-            <p className="text-slate-700 bg-white p-4 rounded-lg border border-slate-200">{expense.purpose}</p>
-          </div>
+          <AttachmentList attachments={expense.attachments || []} />
 
-          {expense.otherInfo && (
-            <div>
-              <p className="text-sm text-slate-500 font-medium mb-1">Other Information</p>
-              <p className="text-slate-700 bg-white p-4 rounded-lg border border-slate-200">{expense.otherInfo}</p>
+          {expense.receiptUrl && (
+            <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+              <p className="text-sm text-emerald-700 font-semibold mb-1">Payment Receipt</p>
+              <a href={getFileUrl(expense.receiptUrl)} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-emerald-700 hover:underline">
+                <ExternalLink className="h-4 w-4" /> View Receipt
+              </a>
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
-            <div>
-              <p className="text-xs text-blue-500 font-medium mb-0.5">Bank</p>
-              <p className="font-semibold text-slate-800 text-sm">{expense.bankName}</p>
-            </div>
-            <div>
-              <p className="text-xs text-blue-500 font-medium mb-0.5">Account Number</p>
-              <p className="font-semibold text-slate-800 text-sm font-mono">{expense.accountNumber}</p>
-            </div>
-            <div>
-              <p className="text-xs text-blue-500 font-medium mb-0.5">Account Name</p>
-              <p className="font-semibold text-slate-800 text-sm">{expense.accountName}</p>
-            </div>
-          </div>
-
-          <div className="border-t pt-6">
-            <h4 className="font-display font-semibold mb-4 text-lg">Approval Timeline</h4>
+          <div className="border-t pt-4">
+            <h4 className="font-display font-semibold mb-3 text-base">Approval Timeline</h4>
             <div className="space-y-3">
               <TimelineStep title="Manager Approval" name={expense.approverName} date={expense.managerApprovalDate} reason={expense.managerRejectionReason} />
               <TimelineStep title="Internal Control" name={expense.internalControlName} date={expense.internalControlApprovalDate} reason={expense.internalControlRejectionReason} />
@@ -227,12 +227,12 @@ function ExpenseDetailModal({ expense, onClose, onAction, userRole }: any) {
                 <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => onAction('reject')}>
                   <X className="h-4 w-4 mr-1" /> Reject
                 </Button>
-                <Button className="bg-primary" onClick={() => onAction('approve')}>
+                <Button onClick={() => onAction('approve')}>
                   <Check className="h-4 w-4 mr-1" /> Approve
                 </Button>
               </>
             )}
-            {expense.status === 'pending_payment' && (
+            {expense.status === 'pending_payment' && isFinanceTeam && (
               <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => onAction('pay')}>
                 Mark as Paid
               </Button>
@@ -261,11 +261,7 @@ function TimelineStep({ title, name, date, reason, isLast = false }: any) {
       </div>
       <div className="pb-4">
         <p className="font-semibold text-slate-800">{title} {name && <span className="text-slate-500 font-normal text-sm ml-1">({name})</span>}</p>
-        {date ? (
-          <p className="text-sm text-slate-500">{format(new Date(date), 'MMM dd, yyyy HH:mm')}</p>
-        ) : (
-          <p className="text-sm text-slate-400 italic">Pending</p>
-        )}
+        {date ? <p className="text-sm text-slate-500">{format(new Date(date), 'MMM dd, yyyy')}</p> : <p className="text-sm text-slate-400 italic">Pending</p>}
         {reason && <p className="text-sm text-red-600 mt-1 bg-red-50 p-2 rounded border border-red-100">{reason}</p>}
       </div>
     </div>
@@ -274,10 +270,13 @@ function TimelineStep({ title, name, date, reason, isLast = false }: any) {
 
 function ApprovalModal({ expense, action, onClose }: any) {
   const [reason, setReason] = useState("");
-  const [receiptUrl, setReceiptUrl] = useState("");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptRef, setReceiptRef] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [isPaying, setIsPaying] = useState(false);
 
   const approveMutation = useApproveExpense({
     mutation: {
@@ -290,16 +289,33 @@ function ApprovalModal({ expense, action, onClose }: any) {
     }
   });
 
-  const payMutation = useMarkExpensePaid({
-    mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['/api/expenses'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
-        toast({ title: "Success", description: "Expense marked as paid." });
-        onClose();
+  const handlePay = async () => {
+    setIsPaying(true);
+    try {
+      const apiBase = `${window.location.protocol}//${window.location.hostname}:8080`;
+      const formData = new FormData();
+      if (receiptFile) {
+        formData.append("receipt", receiptFile);
+      } else if (receiptRef) {
+        formData.append("receiptUrl", receiptRef);
       }
+      formData.append("paidById", String(user?.id));
+      const resp = await fetch(`${apiBase}/api/expenses/${expense.id}/pay`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      if (!resp.ok) throw new Error("Failed to mark as paid");
+      queryClient.invalidateQueries({ queryKey: ['/api/expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+      toast({ title: "Success", description: "Expense marked as paid." });
+      onClose();
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message || "Failed to mark as paid" });
+    } finally {
+      setIsPaying(false);
     }
-  });
+  };
 
   const handleSubmit = () => {
     if (action === 'reject' && !reason) {
@@ -308,23 +324,21 @@ function ApprovalModal({ expense, action, onClose }: any) {
     }
 
     if (action === 'pay') {
-      payMutation.mutate({
-        id: expense.id,
-        data: { paidById: user!.id, receiptUrl }
-      });
-    } else {
-      approveMutation.mutate({
-        id: expense.id,
-        data: {
-          action: action as 'approve' | 'reject',
-          approverId: user!.id,
-          reason
-        }
-      });
+      handlePay();
+      return;
     }
+
+    approveMutation.mutate({
+      id: expense.id,
+      data: {
+        action: action as 'approve' | 'reject',
+        approverId: user!.id,
+        reason
+      }
+    });
   };
 
-  const isPending = approveMutation.isPending || payMutation.isPending;
+  const isPending = approveMutation.isPending || isPaying;
   const isDestructive = action === 'reject';
   const title = action === 'approve' ? 'Approve Expense' : action === 'reject' ? 'Reject Expense' : 'Mark as Paid';
 
@@ -340,35 +354,56 @@ function ApprovalModal({ expense, action, onClose }: any) {
 
         <div className="space-y-4 py-4">
           <div className="bg-slate-50 p-4 rounded-xl text-sm space-y-2 border border-slate-100">
-            <div className="flex justify-between"><span className="text-slate-500">Requester</span> <span className="font-medium text-slate-800">{expense.requesterName}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Department</span> <span className="font-medium text-slate-800">{expense.department}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Purpose</span> <span className="font-medium text-slate-800 text-right max-w-[60%]">{expense.purpose}</span></div>
-            <div className="flex justify-between pt-2 border-t mt-2"><span className="text-slate-500">Bank Details</span> <span className="font-medium text-slate-800">{expense.bankName} — {expense.accountNumber}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Requester</span><span className="font-medium text-slate-800">{expense.requesterName}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Department</span><span className="font-medium text-slate-800">{expense.department}</span></div>
+            {expense.sbu && <div className="flex justify-between"><span className="text-slate-500">SBU</span><span className="font-medium text-slate-800">{expense.sbu}</span></div>}
+            <div className="flex justify-between"><span className="text-slate-500">Purpose</span><span className="font-medium text-slate-800 text-right max-w-[60%]">{expense.purpose}</span></div>
+            <div className="flex justify-between pt-2 border-t"><span className="text-slate-500">Bank</span><span className="font-medium text-slate-800">{expense.bankName} — {expense.accountNumber}</span></div>
           </div>
+
+          {expense.attachments && expense.attachments.length > 0 && (
+            <AttachmentList attachments={expense.attachments} />
+          )}
 
           {action !== 'pay' && (
             <div className="space-y-2">
               <label className="text-sm font-semibold">
                 Reason / Comments {action === 'reject' && <span className="text-red-500">*</span>}
               </label>
-              <Textarea
-                value={reason}
-                onChange={e => setReason(e.target.value)}
-                placeholder={`Enter your ${action} reason here...`}
-                className="resize-none"
-              />
+              <Textarea value={reason} onChange={e => setReason(e.target.value)} placeholder={`Enter your ${action} reason...`} className="resize-none" />
             </div>
           )}
 
           {action === 'pay' && (
-            <div className="space-y-2">
-              <label className="text-sm font-semibold">Receipt Reference <span className="text-slate-400 font-normal">(optional)</span></label>
-              <Input
-                type="text"
-                value={receiptUrl}
-                onChange={e => setReceiptUrl(e.target.value)}
-                placeholder="Reference number or URL..."
-              />
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold">Upload Payment Receipt <span className="text-slate-400 font-normal">(optional)</span></label>
+                <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 bg-slate-50">
+                  {receiptFile ? (
+                    <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-slate-200">
+                      <div className="flex items-center gap-2">
+                        <Paperclip className="h-4 w-4 text-primary" />
+                        <span className="text-sm text-slate-700 truncate">{receiptFile.name}</span>
+                      </div>
+                      <button type="button" onClick={() => setReceiptFile(null)} className="text-slate-400 hover:text-red-500">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <Upload className="h-6 w-6 text-slate-400 mx-auto mb-1" />
+                      <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => setReceiptFile(e.target.files?.[0] || null)} />
+                      <Button type="button" variant="outline" size="sm" className="bg-white" onClick={() => fileInputRef.current?.click()}>
+                        Choose Receipt File
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm text-slate-500">Or enter a reference number</label>
+                <Input value={receiptRef} onChange={e => setReceiptRef(e.target.value)} placeholder="e.g. TXN123456789" />
+              </div>
             </div>
           )}
         </div>

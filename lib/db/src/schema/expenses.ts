@@ -10,6 +10,8 @@ export const expensesTable = pgTable("expenses", {
   purpose: text("purpose").notNull(),
   otherInfo: text("other_info"),
   department: text("department").notNull(),
+  sbu: text("sbu"),
+  attachments: text("attachments"),
   requesterId: integer("requester_id").notNull().references(() => usersTable.id),
   requesterName: text("requester_name").notNull(),
   approverId: integer("approver_id").notNull().references(() => usersTable.id),
