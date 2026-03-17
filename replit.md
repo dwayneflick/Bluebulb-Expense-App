@@ -56,11 +56,24 @@ artifacts-monorepo/
 ### Pages
 - Login — email/password auth
 - Dashboard — charts by status, department, month, year
-- My Expense Requests — requester's own expenses + raise expense form
-- Expense Approval — pending expenses for current approver
-- My Expense Retirement — retirement requests submitted by user
+- My Expense Requests — requester's own expenses + raise expense form (with Other Info, Due Date, Dept, Name fields)
+- Expense Approval — pending expenses for current approver with View Details modal (full info + timeline before approve/reject)
+- My Expense Retirement — retirement requests, "Awaiting Retirement" card with Retire button for paid expenses
 - Retire Approval — retirement requests pending approval
+- Admin Users (`/admin/users`) — admin-only user management (create, edit, delete with role counters)
 - Help — FAQ and instructions
+
+### Phase 2 Improvements (March 2026)
+- Fixed missing CheckCircle2/XCircle icon imports
+- Added "Other Information" and "Due Date" fields to expense form
+- Added pre-filled, read-only Department and Requester Name fields to form
+- Added "View" button on Expense Approval page → opens full expense detail modal with timeline
+- Added "Retire" button in My Retirements for paid expenses awaiting retirement
+- Added balance tracker in retirement form (surplus/deficit display)
+- Added Admin User Management page with role counts, create/edit/delete
+- Added User Management to sidebar (admin-only)
+- Finance Team role added to approver sidebar visibility
+- Sidebar branding updated (text-based logo with "Expense Manager" subtitle)
 
 ## Test Credentials
 | Role | Email | Password |

@@ -7,7 +7,8 @@ import {
   WalletCards, 
   ShieldCheck, 
   HelpCircle,
-  LogOut
+  LogOut,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +19,10 @@ export function Sidebar() {
   const isApprover = user?.role === 'approver_manager' || 
                      user?.role === 'internal_control' || 
                      user?.role === 'finance_manager' || 
+                     user?.role === 'finance_team' ||
                      user?.role === 'admin';
+
+  const isAdmin = user?.role === 'admin';
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard, visible: true },
@@ -26,18 +30,20 @@ export function Sidebar() {
     { href: "/approvals", label: "Expense Approval", icon: CheckSquare, visible: isApprover },
     { href: "/retirements", label: "My Retirements", icon: WalletCards, visible: true },
     { href: "/retire-approvals", label: "Retire Approval", icon: ShieldCheck, visible: isApprover },
+    { href: "/admin/users", label: "User Management", icon: Users, visible: isAdmin },
     { href: "/help", label: "Help & Support", icon: HelpCircle, visible: true },
   ];
 
   return (
     <aside className="w-64 bg-sidebar text-sidebar-foreground flex flex-col h-screen fixed top-0 left-0 z-20 shadow-xl">
       <div className="h-16 flex items-center px-6 border-b border-sidebar-accent">
-        <img 
-          src={`${import.meta.env.BASE_URL}images/logo.png`} 
-          alt="Bluebulb Logo" 
-          className="h-8 w-8 mr-3 filter brightness-0 invert" 
-        />
-        <h1 className="font-display font-bold text-xl tracking-wide text-white">Bluebulb</h1>
+        <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center mr-3 flex-shrink-0">
+          <span className="text-white font-black text-sm">B</span>
+        </div>
+        <div>
+          <h1 className="font-display font-bold text-lg leading-none tracking-wide text-white">Bluebulb</h1>
+          <p className="text-[10px] text-sidebar-foreground/50 leading-none mt-0.5 uppercase tracking-widest">Expense Manager</p>
+        </div>
       </div>
 
       <div className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">

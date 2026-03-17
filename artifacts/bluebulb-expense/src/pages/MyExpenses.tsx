@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { formatNaira, NIGERIAN_BANKS, EXPENSE_TYPES } from "@/lib/constants";
 import { StatusBadge } from "@/components/StatusBadge";
 import { format } from "date-fns";
-import { Plus, Eye, Loader2, FileText } from "lucide-react";
+import { Plus, Eye, Loader2, FileText, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -262,9 +262,22 @@ function CreateExpenseForm({ onSuccess, users }: { onSuccess: () => void, users:
         </div>
         <div className="space-y-2 md:col-span-2">
           <Label>Purpose <span className="text-red-500">*</span></Label>
-          <Textarea value={formData.purpose} onChange={e => setFormData({...formData, purpose: e.target.value})} placeholder="Detailed reason for this expense" className="bg-slate-50 min-h-[100px]" />
+          <Textarea value={formData.purpose} onChange={e => setFormData({...formData, purpose: e.target.value})} placeholder="Detailed reason for this expense" className="bg-slate-50 min-h-[80px]" />
         </div>
-        
+        <div className="space-y-2 md:col-span-2">
+          <Label>Other Information <span className="text-slate-400 font-normal text-xs">(optional)</span></Label>
+          <Textarea value={formData.otherInfo} onChange={e => setFormData({...formData, otherInfo: e.target.value})} placeholder="Any additional context, notes, or breakdown details" className="bg-slate-50 min-h-[60px]" />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Department</Label>
+          <Input value={user?.department || ''} disabled className="bg-slate-100 text-slate-500 cursor-not-allowed" />
+        </div>
+        <div className="space-y-2">
+          <Label>Name of Requester</Label>
+          <Input value={user?.name || ''} disabled className="bg-slate-100 text-slate-500 cursor-not-allowed" />
+        </div>
+
         <div className="space-y-2">
           <Label>Amount (₦) <span className="text-red-500">*</span></Label>
           <Input type="number" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} placeholder="0.00" className="bg-slate-50" />
@@ -272,6 +285,10 @@ function CreateExpenseForm({ onSuccess, users }: { onSuccess: () => void, users:
         <div className="space-y-2">
           <Label>Request Date <span className="text-red-500">*</span></Label>
           <Input type="date" value={formData.requestDate} onChange={e => setFormData({...formData, requestDate: e.target.value})} className="bg-slate-50" />
+        </div>
+        <div className="space-y-2">
+          <Label>Due Date <span className="text-slate-400 font-normal text-xs">(optional)</span></Label>
+          <Input type="date" value={formData.dueDate} onChange={e => setFormData({...formData, dueDate: e.target.value})} className="bg-slate-50" />
         </div>
 
         <div className="space-y-2 md:col-span-2">

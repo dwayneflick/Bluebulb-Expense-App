@@ -14,6 +14,7 @@ import ExpenseApproval from "@/pages/ExpenseApproval";
 import MyRetirements from "@/pages/MyRetirements";
 import RetireApproval from "@/pages/RetireApproval";
 import Help from "@/pages/Help";
+import AdminUsers from "@/pages/AdminUsers";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,6 +50,9 @@ function Router() {
       </Route>
       <Route path="/help">
         <ProtectedLayout><Help /></ProtectedLayout>
+      </Route>
+      <Route path="/admin/users">
+        <ProtectedLayout><AdminUsers /></ProtectedLayout>
       </Route>
       <Route component={NotFound} />
     </Switch>
