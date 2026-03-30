@@ -16,7 +16,7 @@ pnpm workspace monorepo using TypeScript. Bluebulb Expense Management System —
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
-- **Auth**: express-session with bcryptjs
+- **Auth**: express-session with bcryptjs, helmet, express-rate-limit
 
 ## Structure
 
@@ -75,16 +75,8 @@ artifacts-monorepo/
 - Finance Team role added to approver sidebar visibility
 - Sidebar branding updated (text-based logo with "Expense Manager" subtitle)
 
-## Test Credentials
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@bluebulb.com | admin123 |
-| Requester | jane@bluebulb.com | user123 |
-| Requester | john@bluebulb.com | user123 |
-| Approver Manager | sarah@bluebulb.com | manager123 |
-| Internal Control | mike@bluebulb.com | control123 |
-| Finance Manager | linda@bluebulb.com | finance123 |
-| Finance Team | bob@bluebulb.com | finance123 |
+## Test Accounts
+Seed users are created by `pnpm --filter @workspace/scripts run seed`. Passwords are set during seeding and stored as bcrypt hashes — never stored in plaintext or committed to the repo. Contact the project admin for login credentials.
 
 ## TypeScript & Composite Projects
 

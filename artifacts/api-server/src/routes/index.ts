@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { requireAuth } from "../middleware/auth";
 import healthRouter from "./health";
 import authRouter from "./auth";
 import usersRouter from "./users";
@@ -10,6 +11,10 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use("/auth", authRouter);
+
+// All routes below require a valid session
+router.use(requireAuth);
+
 router.use("/users", usersRouter);
 router.use("/expenses", expensesRouter);
 router.use("/retirements", retirementsRouter);

@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, retirementsTable, expensesTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { getSessionUser, requireRole } from "../middleware/auth";
 
 const router: IRouter = Router();
 
@@ -24,11 +25,22 @@ const formatRetirement = (r: typeof retirementsTable.$inferSelect) => ({
   updatedAt: r.updatedAt.toISOString(),
 });
 
+// GET /retirements — filtered by role
 router.get("/", async (req, res) => {
   try {
+    const actor = getSessionUser(req)!;
     const { requesterId, status } = req.query;
     const retirements = await db.select().from(retirementsTable);
     let filtered = retirements;
+
+    if (actor.role !== "admin") {
+      if (actor.role === "requester") {
+        filtered = filtered.filter(r => r.requesterId === actor.id);
+      } else if (actor.role === "approver_manager" || actor.role === "finance_manager") {
+        filtered = filtered.filter(r => r.approverId === actor.id);
+      }
+    }
+
     if (requesterId) filtered = filtered.filter(r => r.requesterId === parseInt(requesterId as string));
     if (status) filtered = filtered.filter(r => r.status === status);
     res.json(filtered.map(formatRetirement));
@@ -38,14 +50,25 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+// POST /retirements — requester or admin only
+router.post("/", requireRole("requester", "admin"), async (req, res) => {
   try {
+    const actor = getSessionUser(req)!;
     const { expenseId, requesterId, actualAmount, purpose, approverId, attachmentUrl } = req.body;
+
+    if (actor.role === "requester" && requesterId !== actor.id) {
+      res.status(403).json({ error: "Forbidden", message: "You can only submit retirement for yourself" });
+      return;
+    }
 
     const expenses = await db.select().from(expensesTable).where(eq(expensesTable.id, expenseId)).limit(1);
     const expense = expenses[0];
     if (!expense) {
       res.status(400).json({ error: "Bad Request", message: "Expense not found" });
+      return;
+    }
+    if (expense.status !== "paid") {
+      res.status(400).json({ error: "Bad Request", message: "Can only retire paid expenses" });
       return;
     }
 
@@ -84,41 +107,70 @@ router.post("/", async (req, res) => {
   }
 });
 
+// GET /retirements/:id — authenticated users (with ownership check)
 router.get("/:id", async (req, res) => {
   try {
+    const actor = getSessionUser(req)!;
     const id = parseInt(req.params.id);
     const retirements = await db.select().from(retirementsTable).where(eq(retirementsTable.id, id)).limit(1);
     if (!retirements[0]) {
       res.status(404).json({ error: "Not Found", message: "Retirement not found" });
       return;
     }
-    res.json(formatRetirement(retirements[0]));
+
+    const r = retirements[0];
+    if (actor.role !== "admin" && actor.role !== "finance_team") {
+      if (r.requesterId !== actor.id && r.approverId !== actor.id) {
+        res.status(403).json({ error: "Forbidden", message: "Access denied" });
+        return;
+      }
+    }
+
+    res.json(formatRetirement(r));
   } catch (error) {
     console.error("Get retirement error:", error);
     res.status(500).json({ error: "Internal Server Error", message: "Failed to get retirement" });
   }
 });
 
-router.post("/:id/approve", async (req, res) => {
+// POST /retirements/:id/approve — must be the assigned approver
+router.post("/:id/approve", requireRole("approver_manager", "finance_manager", "admin"), async (req, res) => {
   try {
+    const actor = getSessionUser(req)!;
     const id = parseInt(req.params.id);
-    const { action, reason, approverId } = req.body;
-    const now = new Date().toISOString().split("T")[0];
+    const { action, reason } = req.body;
 
+    const retirements = await db.select().from(retirementsTable).where(eq(retirementsTable.id, id)).limit(1);
+    if (!retirements[0]) {
+      res.status(404).json({ error: "Not Found", message: "Retirement not found" });
+      return;
+    }
+
+    const retirement = retirements[0];
+    if (actor.role !== "admin" && retirement.approverId !== actor.id) {
+      res.status(403).json({ error: "Forbidden", message: "You are not the assigned approver for this retirement" });
+      return;
+    }
+
+    if (retirement.status !== "pending") {
+      res.status(400).json({ error: "Bad Request", message: "Retirement has already been actioned" });
+      return;
+    }
+
+    const now = new Date().toISOString().split("T")[0];
     let updateData: any = { updatedAt: new Date() };
     if (action === "approve") {
       updateData.status = "approved";
       updateData.approvalDate = now;
-    } else {
+    } else if (action === "reject") {
       updateData.status = "rejected";
       updateData.rejectionReason = reason;
+    } else {
+      res.status(400).json({ error: "Bad Request", message: "Invalid action" });
+      return;
     }
 
     const result = await db.update(retirementsTable).set(updateData).where(eq(retirementsTable.id, id)).returning();
-    if (!result[0]) {
-      res.status(404).json({ error: "Not Found", message: "Retirement not found" });
-      return;
-    }
     res.json(formatRetirement(result[0]));
   } catch (error) {
     console.error("Approve retirement error:", error);

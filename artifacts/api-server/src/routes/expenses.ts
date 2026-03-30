@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import { db, expensesTable, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { getSessionUser, requireRole } from "../middleware/auth";
 
 const router: IRouter = Router();
 
@@ -20,7 +21,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB per file
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = /jpeg|jpg|png|gif|pdf|doc|docx|xlsx|xls/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());
@@ -68,17 +69,35 @@ const formatExpense = (e: typeof expensesTable.$inferSelect) => ({
   updatedAt: e.updatedAt.toISOString(),
 });
 
+// GET /expenses — filtered based on role
 router.get("/", async (req, res) => {
   try {
+    const actor = getSessionUser(req)!;
     const { requesterId, status, approverId } = req.query;
     const expenses = await db.select().from(expensesTable);
     let filtered = expenses;
+
+    // Non-admins can only see expenses relevant to them
+    if (actor.role !== "admin") {
+      if (actor.role === "requester") {
+        filtered = filtered.filter(e => e.requesterId === actor.id);
+      } else if (actor.role === "approver_manager") {
+        filtered = filtered.filter(e => e.approverId === actor.id);
+      } else if (actor.role === "internal_control") {
+        filtered = filtered.filter(e => e.internalControlId === actor.id);
+      } else if (actor.role === "finance_manager") {
+        filtered = filtered.filter(e => e.financeManagerId === actor.id);
+      }
+      // finance_team sees all pending_payment and paid
+    }
+
     if (requesterId) filtered = filtered.filter(e => e.requesterId === parseInt(requesterId as string));
     if (status) filtered = filtered.filter(e => e.status === status);
     if (approverId) {
       const aid = parseInt(approverId as string);
       filtered = filtered.filter(e => e.approverId === aid || e.internalControlId === aid || e.financeManagerId === aid);
     }
+
     res.json(filtered.map(formatExpense));
   } catch (error) {
     console.error("Get expenses error:", error);
@@ -86,9 +105,17 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+// POST /expenses — requester or admin only
+router.post("/", requireRole("requester", "admin"), async (req, res) => {
   try {
+    const actor = getSessionUser(req)!;
     const body = req.body;
+
+    // Requesters can only create expenses for themselves
+    if (actor.role === "requester" && body.requesterId !== actor.id) {
+      res.status(403).json({ error: "Forbidden", message: "You can only create expenses for yourself" });
+      return;
+    }
 
     const requesterUsers = await db.select().from(usersTable).where(eq(usersTable.id, body.requesterId)).limit(1);
     const requester = requesterUsers[0];
@@ -145,24 +172,48 @@ router.post("/", async (req, res) => {
   }
 });
 
+// GET /expenses/:id — any authenticated user (filtered by role above)
 router.get("/:id", async (req, res) => {
   try {
+    const actor = getSessionUser(req)!;
     const id = parseInt(req.params.id);
     const expenses = await db.select().from(expensesTable).where(eq(expensesTable.id, id)).limit(1);
     if (!expenses[0]) { res.status(404).json({ error: "Not Found", message: "Expense not found" }); return; }
-    res.json(formatExpense(expenses[0]));
+
+    const e = expenses[0];
+    if (actor.role !== "admin" && actor.role !== "finance_team") {
+      const isRequester = e.requesterId === actor.id;
+      const isApprover = e.approverId === actor.id || e.internalControlId === actor.id || e.financeManagerId === actor.id;
+      if (!isRequester && !isApprover) {
+        res.status(403).json({ error: "Forbidden", message: "Access denied" });
+        return;
+      }
+    }
+
+    res.json(formatExpense(e));
   } catch (error) {
     console.error("Get expense error:", error);
     res.status(500).json({ error: "Internal Server Error", message: "Failed to get expense" });
   }
 });
 
+// PUT /expenses/:id — requester (own draft) or admin
 router.put("/:id", async (req, res) => {
   try {
+    const actor = getSessionUser(req)!;
     const id = parseInt(req.params.id);
+    const expenses = await db.select().from(expensesTable).where(eq(expensesTable.id, id)).limit(1);
+    if (!expenses[0]) { res.status(404).json({ error: "Not Found", message: "Expense not found" }); return; }
+
+    if (actor.role !== "admin") {
+      if (expenses[0].requesterId !== actor.id || expenses[0].status !== "draft") {
+        res.status(403).json({ error: "Forbidden", message: "You can only edit your own draft expenses" });
+        return;
+      }
+    }
+
     const body = req.body;
     const result = await db.update(expensesTable).set({ ...body, updatedAt: new Date() }).where(eq(expensesTable.id, id)).returning();
-    if (!result[0]) { res.status(404).json({ error: "Not Found", message: "Expense not found" }); return; }
     res.json(formatExpense(result[0]));
   } catch (error) {
     console.error("Update expense error:", error);
@@ -170,12 +221,18 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// Upload attachments (up to 3 files)
+// POST /expenses/:id/attachments — requester (own expense) or admin
 router.post("/:id/attachments", upload.array("files", 3), async (req, res) => {
   try {
+    const actor = getSessionUser(req)!;
     const id = parseInt(req.params.id);
     const expenses = await db.select().from(expensesTable).where(eq(expensesTable.id, id)).limit(1);
     if (!expenses[0]) { res.status(404).json({ error: "Not Found", message: "Expense not found" }); return; }
+
+    if (actor.role !== "admin" && expenses[0].requesterId !== actor.id) {
+      res.status(403).json({ error: "Forbidden", message: "You can only upload attachments to your own expenses" });
+      return;
+    }
 
     const existing: string[] = expenses[0].attachments ? JSON.parse(expenses[0].attachments) : [];
     const files = req.files as Express.Multer.File[];
@@ -194,31 +251,32 @@ router.post("/:id/attachments", upload.array("files", 3), async (req, res) => {
   }
 });
 
-// Upload receipt (finance team only)
-router.post("/:id/receipt", upload.single("receipt"), async (req, res) => {
+// POST /expenses/:id/approve — must be the assigned approver for the current step
+router.post("/:id/approve", requireRole("approver_manager", "internal_control", "finance_manager", "admin"), async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
-    if (!req.file) { res.status(400).json({ error: "Bad Request", message: "No file uploaded" }); return; }
-
-    const receiptUrl = `/uploads/${req.file.filename}`;
-    const result = await db.update(expensesTable).set({ receiptUrl, updatedAt: new Date() }).where(eq(expensesTable.id, id)).returning();
-    if (!result[0]) { res.status(404).json({ error: "Not Found", message: "Expense not found" }); return; }
-
-    res.json({ receiptUrl, expense: formatExpense(result[0]) });
-  } catch (error) {
-    console.error("Upload receipt error:", error);
-    res.status(500).json({ error: "Internal Server Error", message: "Failed to upload receipt" });
-  }
-});
-
-router.post("/:id/approve", async (req, res) => {
-  try {
+    const actor = getSessionUser(req)!;
     const id = parseInt(req.params.id);
     const { action, reason } = req.body;
 
     const expenses = await db.select().from(expensesTable).where(eq(expensesTable.id, id)).limit(1);
     const expense = expenses[0];
     if (!expense) { res.status(404).json({ error: "Not Found", message: "Expense not found" }); return; }
+
+    // Verify the actor is the assigned approver for the current step
+    if (actor.role !== "admin") {
+      if (expense.status === "pending_manager" && expense.approverId !== actor.id) {
+        res.status(403).json({ error: "Forbidden", message: "You are not the assigned manager for this expense" });
+        return;
+      }
+      if (expense.status === "pending_internal_control" && expense.internalControlId !== actor.id) {
+        res.status(403).json({ error: "Forbidden", message: "You are not the assigned internal control officer for this expense" });
+        return;
+      }
+      if (expense.status === "pending_finance_manager" && expense.financeManagerId !== actor.id) {
+        res.status(403).json({ error: "Forbidden", message: "You are not the assigned finance manager for this expense" });
+        return;
+      }
+    }
 
     const now = new Date().toISOString().split("T")[0];
     let updateData: any = { updatedAt: new Date() };
@@ -243,6 +301,9 @@ router.post("/:id/approve", async (req, res) => {
         updateData.status = "pending_payment";
         updateData.currentApprovalStep = "payment";
       }
+    } else {
+      res.status(400).json({ error: "Bad Request", message: "Invalid action" });
+      return;
     }
 
     const result = await db.update(expensesTable).set(updateData).where(eq(expensesTable.id, id)).returning();
@@ -253,10 +314,18 @@ router.post("/:id/approve", async (req, res) => {
   }
 });
 
-router.post("/:id/pay", upload.single("receipt"), async (req, res) => {
+// POST /expenses/:id/pay — finance_team or admin only
+router.post("/:id/pay", requireRole("finance_team", "admin"), upload.single("receipt"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const now = new Date().toISOString().split("T")[0];
+
+    const expenses = await db.select().from(expensesTable).where(eq(expensesTable.id, id)).limit(1);
+    if (!expenses[0]) { res.status(404).json({ error: "Not Found", message: "Expense not found" }); return; }
+    if (expenses[0].status !== "pending_payment") {
+      res.status(400).json({ error: "Bad Request", message: "Expense is not in pending payment status" });
+      return;
+    }
 
     let receiptUrl = req.body.receiptUrl || null;
     if (req.file) receiptUrl = `/uploads/${req.file.filename}`;
@@ -269,7 +338,6 @@ router.post("/:id/pay", upload.single("receipt"), async (req, res) => {
       updatedAt: new Date(),
     }).where(eq(expensesTable.id, id)).returning();
 
-    if (!result[0]) { res.status(404).json({ error: "Not Found", message: "Expense not found" }); return; }
     res.json(formatExpense(result[0]));
   } catch (error) {
     console.error("Pay expense error:", error);

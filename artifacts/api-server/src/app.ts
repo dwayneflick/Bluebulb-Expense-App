@@ -1,26 +1,39 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import session from "express-session";
+import helmet from "helmet";
 import path from "path";
 import router from "./routes";
 
+const SESSION_SECRET = process.env.SESSION_SECRET;
+if (!SESSION_SECRET) {
+  console.error("FATAL: SESSION_SECRET environment variable is not set.");
+  process.exit(1);
+}
+
 const app: Express = express();
+
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "same-site" },
+}));
 
 app.use(cors({
   origin: true,
   credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 app.use(session({
-  secret: process.env.SESSION_SECRET || "bluebulb-expense-secret-key-2024",
+  secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false,
+    secure: process.env.NODE_ENV === "production",
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: "lax",
+    maxAge: 24 * 60 * 60 * 1000,
   },
 }));
 
