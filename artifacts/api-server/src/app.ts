@@ -2,11 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import session from "express-session";
 import path from "path";
-import { fileURLToPath } from "url";
 import router from "./routes";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app: Express = express();
 
@@ -28,7 +24,7 @@ app.use(session({
   },
 }));
 
-app.use("/uploads", express.static(path.join(__dirname, "../public/uploads")));
+app.use("/uploads", express.static(path.join(process.cwd(), "public/uploads")));
 
 app.use("/api", router);
 
